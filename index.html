@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XIAO Zähler</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
+        #counter { font-size: 80px; font-weight: bold; color: #333; margin: 20px 0; }
+        button { padding: 15px 30px; font-size: 18px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:disabled { background: #ccc; }
+        #status { margin-top: 20px; color: #666; }
+    </style>
+</head>
+<body>
+
+    <h1>Training Zähler</h1>
+    <div id="counter">--</div>
+    <button id="connectBtn" onclick="connectToBLE()">Verbinden</button>
+    <div id="status">Nicht verbunden</div>
+
+    <script>
+        // Diese UUIDs müssen EXAKT mit dem Arduino Code übereinstimmen
+        const serviceUUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+        const characteristicUUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+        let bleDevice;
+        let bleServer;
+        let bleService;
+        let bleCharacteristic;
+
+        async function connectToBLE() {
+            try {
+                document.getElementById("status").innerText = "Suche Gerät...";
+                
+                // 1. Nach Gerät scannen
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'XIAO Zaehler' }],
+                    optionalServices: [serviceUUID]
+                });
+
+                // Event wenn Verbindung abbricht
+                bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+                // 2. Mit dem GATT Server verbinden
+                document.getElementById("status").innerText = "Verbinde...";
+                bleServer = await bleDevice.gatt.connect();
+
+                // 3. Den Service holen
+                bleService = await bleServer.getPrimaryService(serviceUUID);
+
+                // 4. Die Characteristic holen
+                bleCharacteristic = await bleService.getCharacteristic(characteristicUUID);
+
+                // 5. Benachrichtigungen aktivieren (Start Notifications)
+                await bleCharacteristic.startNotifications();
+                
+                // 6. Event Listener für neue Daten hinzufügen
+                bleCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+
+                document.getElementById("status").innerText = "Verbunden!";
+                document.getElementById("connectBtn").disabled = true;
+                document.getElementById("connectBtn").innerText = "Verbunden";
+
+            } catch (error) {
+                console.error("Fehler:", error);
+                document.getElementById("status").innerText = "Fehler: " + error;
+            }
+        }
+
+        function handleNotifications(event) {
+            // Daten kommen als Roh-Bytes (Buffer) an
+            let value = event.target.value;
+            let decoder = new TextDecoder('utf-8');
+            let count = decoder.decode(value);
+            
+            // Auf dem Bildschirm anzeigen
+            document.getElementById("counter").innerText = count;
+        }
+
+        function onDisconnected(event) {
+            document.getElementById("status").innerText = "Verbindung verloren.";
+            document.getElementById("connectBtn").disabled = false;
+            document.getElementById("connectBtn").innerText = "Verbinden";
+        }
+    </script>
+
+</body>
+</html>
