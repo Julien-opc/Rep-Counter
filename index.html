@@ -1,89 +1,149 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XIAO Zähler</title>
+    <title>Rep Counter Workspace</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-        #counter { font-size: 80px; font-weight: bold; color: #333; margin: 20px 0; }
-        button { padding: 15px 30px; font-size: 18px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        button:disabled { background: #ccc; }
-        #status { margin-top: 20px; color: #666; }
+        /* Deine Original-Styles bleiben komplett erhalten */
+        body { background-color: black; color: white; font-family: verdana; text-align: center; padding-top: 100px; overflow-x: hidden; }
+        .connected { color: #00ff7f; }
+        .disconnected { color: #ff4d4d; }
+        #sensorStatus { position: fixed; bottom: 15px; right: 20px; font-size: 18px; color: white; opacity: 0.8; }
+        .counts-container { display: flex; justify-content: center; gap: 80px; margin-top: 60px; flex-wrap: wrap; }
+        .count-block { display: flex; flex-direction: column; align-items: center; }
+        .counts-label { font-size: 36px; margin-bottom: 20px; color: white; }
+        @keyframes rgbBorder { 0% { border-color: red; } 16% { border-color: orange; } 33% { border-color: yellow; } 50% { border-color: lime; } 66% { border-color: cyan; } 83% { border-color: magenta; } 100% { border-color: red; } }
+        .output-reps, .output-sets { width: 500px; height: 180px; border: 3px solid white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 120px; font-weight: bold; margin-top: 10px; }
+        .output-reps { animation: rgbBorder 6s linear infinite; box-shadow: 0 0 25px currentColor; transition: border-color 0.3s ease; }
+        h1 { color: white; font-size: 50px; }
+        #nameInput { font-size: 50px; padding: 10px; border-radius: 10px; border: 1px solid white; background-color: black; color: white; }
+        #submitName, #connectBtn { font-size: 30px; padding: 10px 20px; border-radius: 10px; border: 1px solid white; background-color: white; color: black; cursor: pointer; margin: 10px; }
+        .rocket { font-size: 60px; position: fixed; left: 50%; transform: translateX(-50%); bottom: -100px; opacity: 0; animation: fly 3s ease-in forwards; }
+        .trail { width: 6px; height: 120px; background: linear-gradient(white, transparent); position: fixed; left: 50%; transform: translateX(-50%); bottom: -80px; opacity: 0; animation: trailFly 3s ease-in forwards; }
+        @keyframes fly { 0% { bottom: -100px; opacity: 0; } 20% { opacity: 1; } 100% { bottom: 110%; opacity: 0; } }
+        @keyframes trailFly { 0% { bottom: -80px; opacity: 0; height: 40px; } 20% { opacity: 1; height: 120px; } 100% { bottom: 110%; opacity: 0; height: 200px; } }
+        #motivation { color: white; font-size: 40px; margin-top: 150px; opacity: 0; transition: opacity 1.5s ease; text-align: center; }
+        select { font-size: 30px; padding: 10px 20px; border-radius: 10px; border: 1px solid white; background-color: black; color: white; margin-top: 20px; }
+        label { font-size: 40px; color: white; display: block; margin-top: 80px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-    <h1>Training Zähler</h1>
-    <div id="counter">--</div>
-    <button id="connectBtn" onclick="connectToBLE()">Verbinden</button>
-    <div id="status">Nicht verbunden</div>
+<h1 id="welcome">Rep-counter Workspace</h1>
 
-    <script>
-        // Diese UUIDs müssen EXAKT mit dem Arduino Code übereinstimmen
-        const serviceUUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-        const characteristicUUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+<button id="connectBtn">Bluetooth Verbinden</button>
 
-        let bleDevice;
-        let bleServer;
-        let bleService;
-        let bleCharacteristic;
+<button id="changeNameBtn" style="font-size:25px; display:none; margin: 0 auto; padding:10px 20px; border-radius:10px; border:1px solid white; background:black; color:white; cursor:pointer;">
+  Change name
+</button>
 
-        async function connectToBLE() {
-            try {
-                document.getElementById("status").innerText = "Suche Gerät...";
-                
-                // 1. Nach Gerät scannen
-                bleDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'XIAO Zaehler' }],
-                    optionalServices: [serviceUUID]
-                });
+<div id="nameContainer" style="display:none; margin-top: 20px;">
+  <input type="text" id="nameInput" placeholder="Enter your name">
+  <button id="submitName">Submit</button>
+</div>
 
-                // Event wenn Verbindung abbricht
-                bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+<label>Choose the exercise:</label>
+<select id="exerciseSelect">
+  <option value="0">Bizep Curls</option>
+  <option value="1">Lat Pulldown</option>
+  <option value="2">Bench Press</option>
+  <option value="3">Lateral raises</option>
+</select>
 
-                // 2. Mit dem GATT Server verbinden
-                document.getElementById("status").innerText = "Verbinde...";
-                bleServer = await bleDevice.gatt.connect();
+<div class="counts-container">
+  <div class="count-block">
+    <label class="counts-label">Rep Counts:</label>
+    <div class="output-reps" id="repsBox">0</div>
+  </div>
+  <div class="count-block">
+    <label class="counts-label">Set Counts:</label>
+    <div class="output-sets" id="setsBox">0</div>
+  </div>
+</div>
 
-                // 3. Den Service holen
-                bleService = await bleServer.getPrimaryService(serviceUUID);
+<div id="motivation"></div>
+<div id="sensorStatus" class="disconnected">Bluetooth: Getrennt</div>
 
-                // 4. Die Characteristic holen
-                bleCharacteristic = await bleService.getCharacteristic(characteristicUUID);
+<script>
+// --- BLUETOOTH KONFIGURATION ---
+const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+const CHAR_UUID    = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
 
-                // 5. Benachrichtigungen aktivieren (Start Notifications)
-                await bleCharacteristic.startNotifications();
-                
-                // 6. Event Listener für neue Daten hinzufügen
-                bleCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+let bleCharacteristic;
 
-                document.getElementById("status").innerText = "Verbunden!";
-                document.getElementById("connectBtn").disabled = true;
-                document.getElementById("connectBtn").innerText = "Verbunden";
+// --- NAMENS-LOGIK (Original beibehalten) ---
+const nameContainer = document.getElementById("nameContainer");
+const welcomeText = document.getElementById("welcome");
+const motivation = document.getElementById("motivation");
+const changeBtn = document.getElementById("changeNameBtn");
+const connectBtn = document.getElementById("connectBtn");
 
-            } catch (error) {
-                console.error("Fehler:", error);
-                document.getElementById("status").innerText = "Fehler: " + error;
-            }
-        }
+let userName = localStorage.getItem("userName");
 
-        function handleNotifications(event) {
-            // Daten kommen als Roh-Bytes (Buffer) an
-            let value = event.target.value;
-            let decoder = new TextDecoder('utf-8');
-            let count = decoder.decode(value);
-            
-            // Auf dem Bildschirm anzeigen
-            document.getElementById("counter").innerText = count;
-        }
+function updateWelcome() {
+    if (!userName) {
+        nameContainer.style.display = "block";
+        changeBtn.style.display = "none";
+    } else {
+        welcomeText.innerText = "Hello " + userName + ", welcome to your Workspace";
+        changeBtn.style.display = "block";
+        nameContainer.style.display = "none";
+    }
+}
+updateWelcome();
 
-        function onDisconnected(event) {
-            document.getElementById("status").innerText = "Verbindung verloren.";
-            document.getElementById("connectBtn").disabled = false;
-            document.getElementById("connectBtn").innerText = "Verbinden";
-        }
-    </script>
+document.getElementById("submitName").addEventListener("click", () => {
+    const input = document.getElementById("nameInput").value.trim();
+    if (!input) return;
+    localStorage.setItem("userName", input);
+    userName = input;
+    updateWelcome();
+    // Raketen Animation
+    let rocket = document.createElement("div"); rocket.className = "rocket"; rocket.innerHTML = "&#128640;";
+    document.body.appendChild(rocket);
+    setTimeout(() => { motivation.innerHTML = "Lock in " + input + " 💪🔥"; motivation.style.opacity = 1; }, 2300);
+    setTimeout(() => { motivation.style.opacity = 0; }, 7300);
+});
 
+changeBtn.addEventListener("click", () => { localStorage.removeItem("userName"); location.reload(); });
+
+// --- BLUETOOTH LOGIK ---
+connectBtn.addEventListener("click", async () => {
+    try {
+        const device = await navigator.bluetooth.requestDevice({
+            filters: [{ name: 'XIAO Zaehler' }],
+            optionalServices: [SERVICE_UUID]
+        });
+        
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        bleCharacteristic = await service.getCharacteristic(CHAR_UUID);
+        
+        await bleCharacteristic.startNotifications();
+        bleCharacteristic.addEventListener('characteristicvaluechanged', (event) => {
+            const val = new TextDecoder().decode(event.target.value);
+            // Wir erwarten vom ESP32 einen String wie "reps,sets" z.B. "12,3"
+            const parts = val.split(",");
+            document.getElementById("repsBox").innerText = parts[0];
+            if(parts[1]) document.getElementById("setsBox").innerText = parts[1];
+        });
+
+        document.getElementById("sensorStatus").innerText = "Bluetooth: Verbunden";
+        document.getElementById("sensorStatus").className = "connected";
+        connectBtn.style.display = "none";
+        
+    } catch (error) {
+        console.log("BLE Fehler: " + error);
+    }
+});
+
+// Übung senden (per Bluetooth Write statt Fetch)
+document.getElementById("exerciseSelect").addEventListener("change", async (e) => {
+    if (bleCharacteristic) {
+        const encoder = new TextEncoder();
+        await bleCharacteristic.writeValue(encoder.encode("ex:" + e.target.value));
+    }
+});
+</script>
 </body>
 </html>
