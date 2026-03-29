@@ -105,35 +105,62 @@ document.getElementById("submitName").addEventListener("click", () => {
     setTimeout(() => { motivation.style.opacity = 0; }, 7300);
 });
 
-changeBtn.addEventListener("click", () => { localStorage.removeItem("userName"); location.reload(); });
+// changeBtn.addEventListener("click", () => { localStorage.removeItem("userName"); location.reload(); });
 
-// --- BLUETOOTH LOGIK ---
+// // --- BLUETOOTH LOGIK ---
+// connectBtn.addEventListener("click", async () => {
+//     try {
+//         const device = await navigator.bluetooth.requestDevice({
+//             filters: [{ name: 'Rep-Counter' }],
+//             optionalServices: [SERVICE_UUID]
+//         });
+        
+//         const server = await device.gatt.connect();
+//         const service = await server.getPrimaryService(SERVICE_UUID);
+//         bleCharacteristic = await service.getCharacteristic(CHAR_UUID);
+        
+//         await bleCharacteristic.startNotifications();
+//         bleCharacteristic.addEventListener('characteristicvaluechanged', (event) => {
+//             const val = new TextDecoder().decode(event.target.value);
+//             // Wir erwarten vom ESP32 einen String wie "reps,sets" z.B. "12,3"
+//             const parts = val.split(",");
+//             document.getElementById("repsBox").innerText = parts[0];
+//             if(parts[1]) document.getElementById("setsBox").innerText = parts[1];
+//         });
+
+//         document.getElementById("sensorStatus").innerText = "Bluetooth: Verbunden";
+//         document.getElementById("sensorStatus").className = "connected";
+//         connectBtn.style.display = "none";
+        
+//     } catch (error) {
+//         console.log("BLE Fehler: " + error);
+//     }
+// });
+
+// --- BLUETOOTH LOGIK (Verbesserte Filterung) ---
 connectBtn.addEventListener("click", async () => {
     try {
         const device = await navigator.bluetooth.requestDevice({
-            filters: [{ name: 'XIAO Zaehler' }],
-            optionalServices: [SERVICE_UUID]
+            // Wir suchen nur nach Geräten, die diesen spezifischen Service anbieten
+            filters: [{
+                services: [SERVICE_UUID]
+            }]
         });
         
         const server = await device.gatt.connect();
         const service = await server.getPrimaryService(SERVICE_UUID);
         bleCharacteristic = await service.getCharacteristic(CHAR_UUID);
         
+        // ... Rest deines Codes (Notifications etc.) bleibt gleich
         await bleCharacteristic.startNotifications();
-        bleCharacteristic.addEventListener('characteristicvaluechanged', (event) => {
-            const val = new TextDecoder().decode(event.target.value);
-            // Wir erwarten vom ESP32 einen String wie "reps,sets" z.B. "12,3"
-            const parts = val.split(",");
-            document.getElementById("repsBox").innerText = parts[0];
-            if(parts[1]) document.getElementById("setsBox").innerText = parts[1];
-        });
-
+        
         document.getElementById("sensorStatus").innerText = "Bluetooth: Verbunden";
         document.getElementById("sensorStatus").className = "connected";
         connectBtn.style.display = "none";
         
     } catch (error) {
-        console.log("BLE Fehler: " + error);
+        console.error("BLE Fehler: ", error);
+        alert("Verbindung fehlgeschlagen. Prüfe, ob Bluetooth an ist.");
     }
 });
 
