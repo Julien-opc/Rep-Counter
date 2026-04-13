@@ -137,30 +137,74 @@ document.getElementById("submitName").addEventListener("click", () => {
 //     }
 // });
 
-// --- BLUETOOTH LOGIK (Verbesserte Filterung) ---
+// // --- BLUETOOTH LOGIK (Verbesserte Filterung) ---
+// connectBtn.addEventListener("click", async () => {
+//     try {
+//         const device = await navigator.bluetooth.requestDevice({
+//             // Wir suchen nur nach Geräten, die diesen spezifischen Service anbieten
+//             filters: [{
+//                 services: [SERVICE_UUID]
+//             }]
+//         });
+        
+//         const server = await device.gatt.connect();
+//         const service = await server.getPrimaryService(SERVICE_UUID);
+//         bleCharacteristic = await service.getCharacteristic(CHAR_UUID);
+        
+//         // ... Rest deines Codes (Notifications etc.) bleibt gleich
+//         await bleCharacteristic.startNotifications();
+        
+//         document.getElementById("sensorStatus").innerText = "Bluetooth: Verbunden";
+//         document.getElementById("sensorStatus").className = "connected";
+//         connectBtn.style.display = "none";
+        
+//     } catch (error) {
+//         console.error("BLE Fehler: ", error);
+//         alert("Verbindung fehlgeschlagen. Prüfe, ob Bluetooth an ist.");
+//     }
+// });
+
+// --- BLUETOOTH LOGIK (Vollständig & Korrigiert) ---
 connectBtn.addEventListener("click", async () => {
     try {
         const device = await navigator.bluetooth.requestDevice({
-            // Wir suchen nur nach Geräten, die diesen spezifischen Service anbieten
-            filters: [{
-                services: [SERVICE_UUID]
-            }]
+            filters: [{ services: [SERVICE_UUID] }]
         });
         
         const server = await device.gatt.connect();
         const service = await server.getPrimaryService(SERVICE_UUID);
         bleCharacteristic = await service.getCharacteristic(CHAR_UUID);
         
-        // ... Rest deines Codes (Notifications etc.) bleibt gleich
+        // 1. Notifications starten
         await bleCharacteristic.startNotifications();
         
+        // 2. DEN LISTENER HINZUFÜGEN (Das hat in deinem unteren Block gefehlt!)
+        bleCharacteristic.addEventListener('characteristicvaluechanged', (event) => {
+            const val = new TextDecoder().decode(event.target.value);
+            console.log("Daten vom ESP32:", val); // Zum Debuggen in der Browser-Konsole
+            
+            const parts = val.split(",");
+            if (parts.length >= 2) {
+                document.getElementById("repsBox").innerText = parts[0];
+                document.getElementById("setsBox").innerText = parts[1];
+            }
+        });
+
+        // 3. Status-Update
         document.getElementById("sensorStatus").innerText = "Bluetooth: Verbunden";
         document.getElementById("sensorStatus").className = "connected";
         connectBtn.style.display = "none";
         
+        // Optional: Einmal den aktuellen Wert lesen (falls der ESP gerade nicht zählt)
+        const initialValue = await bleCharacteristic.readValue();
+        const val = new TextDecoder().decode(initialValue);
+        const parts = val.split(",");
+        document.getElementById("repsBox").innerText = parts[0];
+        document.getElementById("setsBox").innerText = parts[1];
+        
     } catch (error) {
         console.error("BLE Fehler: ", error);
-        alert("Verbindung fehlgeschlagen. Prüfe, ob Bluetooth an ist.");
+        alert("Verbindung fehlgeschlagen: " + error);
     }
 });
 
